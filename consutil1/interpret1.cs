@@ -27,14 +27,14 @@ namespace consutil1 {
                 }
             }
             catch (Exception exc) {
-                rVal = exc.GetHashCode();
+                rVal = exc.HResult;
                 Console.WriteLine(errMsg(exc,"Operator1.Main"));
             }
             return rVal;
         }
 
         string errMsg(Exception exc, string where = "[not specified]") {
-            return String.Format("Exception in '{3}': {0,8:X}({0}) {1}:{2}", exc.GetHashCode(), exc.Message, (exc.InnerException != null) ? exc.InnerException.Message : "[no inner]", where);
+            return String.Format("Exception in '{3}': {0,8:X}({0}) {1}:{2}", exc.HResult, exc.Message, (exc.InnerException != null) ? exc.InnerException.Message : "[no inner]", where);
         }
 
 
@@ -44,25 +44,28 @@ namespace consutil1 {
             opts = new StringDictionary();
             pars = new StringDictionary();
             foreach (String stgVal in args) {
-                string stg = stgVal;
+                string nam = stgVal;
                 try {
                     bool isOpt = false;
-                    if (stg[0].Equals('-')) {
+                    if (nam[0].Equals('-')) {
                         isOpt = true;
-                        stg = stg.Substring(1);
+                        nam = nam.Substring(1);
                     }
                     int eqIdx = 0;
                     string val = "";
-                    if ((stg.Length >= 1) && (eqIdx = stg.IndexOf("=")) > 0) {
-                        val = stg.Substring(eqIdx + 1);
-                        stg = stg.Substring(0, eqIdx);
+                    if ((nam.Length >= 1) && (eqIdx = nam.IndexOf("=")) > 0) {
+                        val = nam.Substring(eqIdx + 1);
+                        nam = nam.Substring(0, eqIdx);
                     }
                     StringDictionary targ = (isOpt) ? opts : pars;
-                    if (targ[stg] != null) {
-                        targ[stg] = val;
+                    if (targ[nam] != null) {
+                        targ[nam] = val;
                     }
                     else {
-                        targ.Add(stg, val);
+                        targ.Add(nam, val);
+                    }
+                    if (isOpt && nam.Equals("ThRoW")) {
+                        throw new Exception(val);
                     }
                 }
                 catch (Exception exc) {
