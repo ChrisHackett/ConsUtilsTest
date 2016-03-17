@@ -69,6 +69,7 @@ namespace consutil1 {
             }
 
 
+            DateTime dtStt = DateTime.Now;
             foreach (String nam in pars.Keys) {
                 try {
                     switch (nam) {
@@ -90,6 +91,8 @@ namespace consutil1 {
                     myLog(msg);
                 }
             }
+            DateTime dtStp = DateTime.Now;
+            Console.WriteLine("msecs="+dtStp.Subtract(dtStt).TotalMilliseconds);
             return rVal;
         }
 
@@ -157,27 +160,81 @@ namespace consutil1 {
             if (lastErr != 0) return lastErr;
 
             if (!Directory.Exists(src)) DoLogError("[src] directory does not exist");
-            if (Directory.Exists(src)) DoLogError("[des] directory exists already",0);
+            if (Directory.Exists(des)) DoLogError("[des] directory exists already",0);
             if (lastErr != 0) return lastErr;
 
-            string forceCopyRoot = @"g:\junk\des";
-
-            if (!(src.IndexOf(forceCopyRoot) == 0)) {
-                DoLogError("currently forcing [des] foot to :"+forceCopyRoot, 2);
+            string forceCopyRoot = @"g:\junk\_des";
+            string tv = opts["fd"];
+            if ((tv = opts["fd"]) != null) {
+                forceCopyRoot = tv;
+            }
+            if (forceCopyRoot.Length > 0) {
+                if (!(des.IndexOf(forceCopyRoot) == 0)) {
+                    DoLogError("currently forcing [des] root to :" + forceCopyRoot, 2);
+                }
             }
 
             if (lastErr != 0) return lastErr;
 
-
-
-
-
+            DirectoryInfo disrc = new DirectoryInfo(src);
+            List<string> filesList = new List<string>();
+            WalkDirectoryTree(disrc, filesList);
+            Console.WriteLine("found:" + filesList.Count);
             return lastErr;
+        }
+
+
+        void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> filesList ) {
+            System.IO.FileInfo[] files = null;
+            System.IO.DirectoryInfo[] subDirs = null;
+
+            // First, process all the files directly under this folder
+            try {
+                files = root.GetFiles("*.*");
+            }
+            // This is thrown if even one of the files requires permissions greater
+            // than the application provides.
+            catch (UnauthorizedAccessException e) {
+                // This code just writes out the message and continues to recurse.
+                // You may decide to do something different here. For example, you
+                // can try to elevate your privileges and access the file again.
+                DoLogError(errMsg(e, "WalkDirectoryTree"));
+            }
+
+            catch (System.IO.DirectoryNotFoundException e) {
+                Console.WriteLine(e.Message);
+                DoLogError(errMsg(e, "WalkDirectoryTree"));
+            }
+
+            catch (Exception e) {
+                Console.WriteLine(e.Message);
+                DoLogError(errMsg(e, "WalkDirectoryTree"));
+            }
+
+
+            if (files != null) {
+                foreach (System.IO.FileInfo fi in files) {
+                    // In this example, we only access the existing FileInfo object. If we
+                    // want to open, delete or modify the file, then
+                    // a try-catch block is required here to handle the case
+                    // where the file has been deleted since the call to TraverseTree().
+                    Console.WriteLine(fi.FullName);
+                    filesList.Add(fi.FullName);
+                }
+
+                // Now find all the subdirectories under this directory.
+                subDirs = root.GetDirectories();
+
+                foreach (System.IO.DirectoryInfo dirInfo in subDirs) {
+                    // Resursive call for each subdirectory.
+                    WalkDirectoryTree(dirInfo, filesList);
+                }
+            }
         }
 
         int DoLogError(string errMsg, int errVal = -1) {
             if (errVal != 0) lastErr = errVal;
-            myLog(errMsg);
+            myLog(errVal + " " + errMsg);
             return lastErr;
         }
 
