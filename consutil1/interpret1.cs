@@ -177,14 +177,60 @@ namespace consutil1 {
             if (lastErr != 0) return lastErr;
 
             DirectoryInfo disrc = new DirectoryInfo(src);
-            List<string> filesList = new List<string>();
-            WalkDirectoryTree(disrc, filesList);
-            Console.WriteLine("found:" + filesList.Count);
+            List<string> srcFilesList = new List<string>();
+            List<string> desFilesList = new List<string>();
+            WalkDirectoryTree(disrc, srcFilesList);
+            Console.WriteLine("found:" + srcFilesList.Count);
+
+            Console.WriteLine(" and new destNames:");
+            char sdSepChar = '|';
+            foreach (var sName in srcFilesList) {
+                //CombinePaths(des, sFrag);
+                
+                FileInfo sfi = new FileInfo(sName);
+                string srcPath = sfi.DirectoryName;
+                string sFrag = srcPath.Substring(src.Length);
+                string dPath = Path.Combine(des, srcPath.Substring(3));
+                if (!Directory.Exists(dPath)) {
+                    Directory.CreateDirectory(dPath);
+                }
+                string dName = Path.Combine(dPath, sfi.Name);
+                desFilesList.Add(sName + sdSepChar + dName);
+                //Console.WriteLine("{0}   ->    {1}",sName,dName);
+                //File.Copy(sName,dName);
+            }
+            Parallel.ForEach(desFilesList, n => {
+                string[] sdPair = n.Split(sdSepChar);
+                File.Copy(sdPair[0], sdPair[1]);
+            });
+
+
             return lastErr;
         }
 
 
-        void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> filesList ) {
+        private void CombinePaths(string p1, string p2) {
+
+            try {
+                string combination = Path.Combine(p1, p2);
+
+                Console.WriteLine("When you combine '{0}' and '{1}', the result is: '{2}'",
+                            p1, p2, combination);
+            }
+            catch (Exception e) {
+                if (p1 == null)
+                    p1 = "null";
+                if (p2 == null)
+                    p2 = "null";
+                Console.WriteLine("You cannot combine '{0}' and '{1}' because: {2}{3}",
+                            p1, p2, Environment.NewLine, e.Message);
+            }
+
+            Console.WriteLine();
+        }
+    
+
+    void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> filesList ) {
             System.IO.FileInfo[] files = null;
             System.IO.DirectoryInfo[] subDirs = null;
 
@@ -218,7 +264,7 @@ namespace consutil1 {
                     // want to open, delete or modify the file, then
                     // a try-catch block is required here to handle the case
                     // where the file has been deleted since the call to TraverseTree().
-                    Console.WriteLine(fi.FullName);
+                    //Console.WriteLine(fi.FullName);
                     filesList.Add(fi.FullName);
                 }
 
