@@ -12,6 +12,8 @@ namespace consutil1 {
 
     delegate void AccumInfo(string val);
 
+    delegate void Walker(System.IO.DirectoryInfo root, List<string> dirsList);
+
     class Interpret1 {
         static void Main(string[] args) {
             FileSystemOps oper = new FileSystemOps(myAccumInfo);
@@ -38,7 +40,7 @@ namespace consutil1 {
             int rVal = 0;
             opts = new StringDictionary();
             pars = new StringDictionary();
-            foreach (String stgVal in args) {
+            foreach (string stgVal in args) {
                 string nam = stgVal;
                 try {
                     bool isOpt = false;
@@ -73,10 +75,10 @@ namespace consutil1 {
             }
 
             if (opts["v"] != null) {
-                foreach (String stg in opts.Keys) {
+                foreach (string stg in opts.Keys) {
                     Console.WriteLine("o {0,-10} = '{1}'", stg, opts[stg]);
                 }
-                foreach (String stg in pars.Keys) {
+                foreach (string stg in pars.Keys) {
                     Console.WriteLine("p {0,-10} = '{1}'", stg, pars[stg]);
                 }
 
@@ -89,11 +91,11 @@ namespace consutil1 {
             return string.Format("Exception in '{3}': {0,8:X}({0}) {1}:{2}", exc.HResult, exc.Message, (exc.InnerException != null) ? exc.InnerException.Message : "[no inner]", where);
         }
 
-        public static string ErrorMsg(String errorTxt, int errorVal, string where = "[not specified]") {
+        public static string ErrorMsg(string errorTxt, int errorVal, string where = "[not specified]") {
             return string.Format("Error '{3}': {0,8:X}({0}) {1}:{2}", errorVal, errorTxt, where, errorTxt);
         }
-        public static string InfoMsg(String errorTxt, int errorVal, string where = "[not specified]") {
-            return string.Format("Error '{3}': {0,8:X}({0}) {1}:{2}", errorVal, errorTxt, where, errorTxt);
+        public static string InfoMsg(string errorTxt, int errorVal, string where = "[not specified]") {
+            return string.Format("Info '{3}': {0,8:X}({0}) {1}:{2}", errorVal, errorTxt, where, errorTxt);
         }
 
 
@@ -123,7 +125,7 @@ namespace consutil1 {
             int argsErr = SimpleUtils.ExtractArguements(args, out opts, out pars, myLog);
             Console.WriteLine("FileSystemOps.Main.opts returns: {0:X}({0})", argsErr);
 
-            foreach (String nam in opts.Keys) {
+            foreach (string nam in opts.Keys) {
                 try {
                     switch (nam) {
                         case "help":
@@ -139,30 +141,31 @@ namespace consutil1 {
                 }
             }
 
+            List<string> resultFinalList = new List<string>();
 
             DateTime dtStt = DateTime.Now;
-            foreach (String nam in pars.Keys) {
+            foreach (string nam in pars.Keys) {
                 try {
                     switch (nam) {
                         case "oper":
                             switch (pars[nam]) {
                                 case "copy": {
-                                        List<string> srcFilesList = new List<string>();
-                                        rVal = Walk(opts, pars, srcFilesList);
+                                        //List<string> srcFilesList = new List<string>();
+                                        rVal = TraverseAndCollect(opts, pars, resultFinalList, WalkDirectoryFileTree);
                                         if (rVal != 0) {
                                             string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
                                             Console.WriteLine(msg);
                                             myLog(msg);
                                         }
                                         else {
-                                            CopyFiles(opts, pars, srcFilesList);
+                                            CopyFiles(opts, pars, resultFinalList);
                                         }
                                     }
                                     break;
 
                                 case "findd": {
-                                        List<string> srcFilesList = new List<string>();
-                                        rVal = Walk(opts, pars, srcFilesList);
+                                        List<string> srcDirsList = new List<string>();
+                                        rVal = TraverseAndCollect(opts, pars, srcDirsList, WalkDirectoryTree);
                                         if (rVal != 0) {
                                             string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
                                             Console.WriteLine(msg);
@@ -170,14 +173,26 @@ namespace consutil1 {
                                         }
                                         else {
                                             List<string> desDirsList = new List<string>();
-                                            rVal = FindDirs( opts,  pars, srcFilesList,  desDirsList);
-                                            if ((opts["v"] != null) && (opts["v"].Equals("1"))) {
-                                                Console.WriteLine("Directory List length:"+ desDirsList.Count);
-                                                foreach (String stg in desDirsList) {
-                                                    Console.WriteLine(stg);
+                                            rVal = DedupList(opts, pars, srcDirsList, desDirsList);  // dedupped dirs list
+                                            Console.WriteLine("Directory List length:" + desDirsList.Count);
+                                            string pattern = pars["pat"];
+                                            if (pattern != null) {
+                                                string[] pats = pattern.Split(',');
+                                                foreach (string pat in pats) {
+                                                    if (pat.Length > 0) {
+                                                        foreach (string dir in desDirsList) {
+                                                            if (dir.EndsWith(pat)) {
+                                                                resultFinalList.Add(dir);
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                                Console.WriteLine("Directory List end");
+                                                Console.WriteLine("Filtered List length:" + resultFinalList.Count);
                                             }
+                                            else {
+                                                resultFinalList = desDirsList;
+                                            }
+
 
                                         }
                                     }
@@ -195,6 +210,14 @@ namespace consutil1 {
             }
             DateTime dtStp = DateTime.Now;
             Console.WriteLine("msecs=" + dtStp.Subtract(dtStt).TotalMilliseconds);
+
+            if ((opts["v"] != null) && (opts["v"].Equals("1"))) {
+                foreach (string stg in resultFinalList) {
+                    Console.WriteLine(stg);
+                }
+                Console.WriteLine("Directory List end");
+            }
+
             return rVal;
         }
 
@@ -202,7 +225,7 @@ namespace consutil1 {
 
 
 
-        int Walk(StringDictionary opts, StringDictionary pars, List<string> srcFilesList) {
+        int TraverseAndCollect(StringDictionary opts, StringDictionary pars, List<string> srcFilesList, Walker walkMethod) {
             string src = pars["src"];
             if (src == null) DoLogError("need [src] directory ");
             if (lastErr != 0) return lastErr;
@@ -210,16 +233,8 @@ namespace consutil1 {
             if (!Directory.Exists(src)) DoLogError("[src] directory does not exist");
             if (lastErr != 0) return lastErr;
 
-            string forceCopyRoot = @"g:\junk\_des";
-            string tv = opts["fd"];
-            if ((tv = opts["fd"]) != null) {
-                forceCopyRoot = tv;
-            }
-
-            if (lastErr != 0) return lastErr;
-
             DirectoryInfo disrc = new DirectoryInfo(src);
-            WalkDirectoryTree(disrc, srcFilesList);
+            walkMethod(disrc, srcFilesList);
             Console.WriteLine("found:" + srcFilesList.Count);
             return lastErr;
         }
@@ -293,21 +308,50 @@ namespace consutil1 {
         }
 
 
-        int FindDirs(StringDictionary opts, StringDictionary pars, List<string> srcFilesList, List<string> desDirsList) {
+        int DedupList(StringDictionary opts, StringDictionary pars, List<string> srcFilesList, List<string> desDirsList) {
             Hashtable htDirs = new Hashtable();
             foreach (var sName in srcFilesList) {
-                FileInfo sfi = new FileInfo(sName);
-                if (htDirs[sfi.DirectoryName] == null) {
-                    htDirs.Add(sfi.DirectoryName, 1);
-                    desDirsList.Add(sfi.DirectoryName);
+                if (htDirs[sName] == null) {
+                    htDirs.Add(sName, 1);
+                    desDirsList.Add(sName);
                 }
             }
-            myLog(SimpleUtils.InfoMsg("found", desDirsList.Count, "FindDirs"));
+            myLog(SimpleUtils.InfoMsg("found", desDirsList.Count, "DedupList"));
             return lastErr;
         }
 
+        void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> dirsList) {
+            //System.IO.DirectoryInfo[] subDirs = null;
 
-        void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> filesList) {
+            //try {
+            //    subDirs = root.GetDirectories();
+            //}
+            //// This is thrown if even one of the files requires permissions greater than the application provides.
+            //catch (UnauthorizedAccessException e) {
+            //    // This code just writes out the message and continues to recurse.
+            //    // You may decide to do something different here. For example, you
+            //    // can try to elevate your privileges and access the file again.
+            //    DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree UnauthorizedAccessException"));
+            //}
+            //catch (System.IO.DirectoryNotFoundException e) {
+            //    Console.WriteLine(e.Message);
+            //    DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree DirectoryNotFoundException"));
+            //}
+            //catch (Exception e) {
+            //    Console.WriteLine(e.Message);
+            //    DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree Exception"));
+            //}
+
+            dirsList.Add(root.FullName);
+            //if (subDirs.Length != 0) {
+                foreach (System.IO.DirectoryInfo dirInfo in root.GetDirectories()) {
+                    // Resursive call for each subdirectory.
+                    //dirsList.Add(dirInfo.FullName);
+                    WalkDirectoryTree(dirInfo, dirsList);
+                }
+            //}
+        }
+        void WalkDirectoryFileTree(System.IO.DirectoryInfo root, List<string> filesList) {
             System.IO.FileInfo[] files = null;
             System.IO.DirectoryInfo[] subDirs = null;
 
@@ -321,17 +365,17 @@ namespace consutil1 {
                 // This code just writes out the message and continues to recurse.
                 // You may decide to do something different here. For example, you
                 // can try to elevate your privileges and access the file again.
-                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryTree UnauthorizedAccessException"));
+                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree UnauthorizedAccessException"));
             }
 
             catch (System.IO.DirectoryNotFoundException e) {
                 Console.WriteLine(e.Message);
-                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryTree DirectoryNotFoundException"));
+                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree DirectoryNotFoundException"));
             }
 
             catch (Exception e) {
                 Console.WriteLine(e.Message);
-                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryTree Exception"));
+                DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree Exception"));
             }
 
 
@@ -350,7 +394,7 @@ namespace consutil1 {
 
                 foreach (System.IO.DirectoryInfo dirInfo in subDirs) {
                     // Resursive call for each subdirectory.
-                    WalkDirectoryTree(dirInfo, filesList);
+                    WalkDirectoryFileTree(dirInfo, filesList);
                 }
             }
         }
