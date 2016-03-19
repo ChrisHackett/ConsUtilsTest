@@ -174,6 +174,21 @@ namespace consutil1 {
 
                                 case "findd": {
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
+                                        if (pars.ContainsKey("ttail")) {
+                                            List<string> templ = new List<string>();
+                                            foreach (string dir in resultFinalList) {
+                                                try {
+                                                    templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
+                                                }
+                                                catch (Exception exc) {
+                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :"+dir, rVal, "oper.findd copy");
+                                                    Console.WriteLine(lmsg);
+                                                    myLog(lmsg);
+                                                }
+                                            }
+                                            resultFinalList = templ;
+                                        }
+
                                         if (pars.ContainsKey("des")) {
                                             if (rVal != 0) {
                                                 string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
@@ -181,16 +196,17 @@ namespace consutil1 {
                                                 myLog(msg);
                                             }
                                             else {
-                                                if (!pars.ContainsKey("src")) pars.Add("src", "");
-                                                pars["oper"] = "findf";
                                                 List<string> finalList = new List<string>();
                                                 foreach (string dir in resultFinalList) {
-                                                    //List<string> lopts = new List<string>();
-                                                    //opts.CopyTo(lopts, 0);
-                                                    //pars["src"] = dir;
-                                                    //FilterFSInfo(args, opts, pars);
+                                                    Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
+                                                    lpars["oper"] = "findf";
+                                                    lpars["src"] = dir;
+                                                    FileSystemOps fso = new FileSystemOps(myLog);
+                                                    finalList.AddRange(fso.FilterFSInfo(args, opts, lpars));
                                                 }
-
+                                                string msg = SimpleUtils.InfoMsg("findd with des length ", rVal, "oper.findd walk");
+                                                Console.WriteLine(msg);
+                                                myLog(msg);
                                             }
                                         }
                                     }
@@ -214,6 +230,13 @@ namespace consutil1 {
                     Console.WriteLine(stg);
                 }
                 Console.WriteLine("List end");
+            }
+            if (pars.ContainsKey("resultsf")) {
+                StreamWriter sw = new StreamWriter(pars["resultsf"]);
+                foreach (string stg in resultFinalList) {
+                    sw.WriteLine(stg);
+                }
+                sw.Close();
             }
 
             return resultFinalList;
