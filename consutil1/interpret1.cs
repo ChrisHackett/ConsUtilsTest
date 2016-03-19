@@ -1,19 +1,16 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace consutil1 {
 
     delegate void AccumInfo(string val);
 
-    delegate void Walker(System.IO.DirectoryInfo root, List<string> dirsList);
+    delegate void Walker(DirectoryInfo root, List<string> dirsList);
 
 
     class Interpret1 {
@@ -408,8 +405,12 @@ namespace consutil1 {
                     }
                 }
                 psi.FileName = pars["cmd"];
-                psi.Arguments = (pars.ContainsKey("opts"))?pars["opts"]:"";
-                System.Diagnostics.Process.Start(psi);
+                string copts = (pars.ContainsKey("opts")) ? pars["opts"] : "";
+                string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
+
+                psi.Arguments = cmdOpts;
+
+                Process.Start(psi);
             });
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
@@ -495,18 +496,18 @@ namespace consutil1 {
             return lastErr;
         }
 
-        void WalkDirectoryTree(System.IO.DirectoryInfo root, List<string> dirsList) {
+        void WalkDirectoryTree(DirectoryInfo root, List<string> dirsList) {
             dirsList.Add(root.FullName);
-            foreach (System.IO.DirectoryInfo dirInfo in root.GetDirectories()) {
+            foreach (DirectoryInfo dirInfo in root.GetDirectories()) {
                 // Resursive call for each subdirectory.
                 //dirsList.Add(dirInfo.FullName);
                 WalkDirectoryTree(dirInfo, dirsList);
             }
         }
 
-        void WalkDirectoryFileTree(System.IO.DirectoryInfo root, List<string> filesList) {
-            System.IO.FileInfo[] files = null;
-            System.IO.DirectoryInfo[] subDirs = null;
+        void WalkDirectoryFileTree(DirectoryInfo root, List<string> filesList) {
+            FileInfo[] files = null;
+            DirectoryInfo[] subDirs = null;
 
             // First, process all the files directly under this folder
             try {
@@ -521,7 +522,7 @@ namespace consutil1 {
                 DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree UnauthorizedAccessException"));
             }
 
-            catch (System.IO.DirectoryNotFoundException e) {
+            catch (DirectoryNotFoundException e) {
                 Console.WriteLine(e.Message);
                 DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree DirectoryNotFoundException"));
             }
@@ -533,7 +534,7 @@ namespace consutil1 {
 
 
             if (files != null) {
-                foreach (System.IO.FileInfo fi in files) {
+                foreach (FileInfo fi in files) {
                     // In this example, we only access the existing FileInfo object. If we
                     // want to open, delete or modify the file, then
                     // a try-catch block is required here to handle the case
@@ -545,7 +546,7 @@ namespace consutil1 {
                 // Now find all the subdirectories under this directory.
                 subDirs = root.GetDirectories();
 
-                foreach (System.IO.DirectoryInfo dirInfo in subDirs) {
+                foreach (DirectoryInfo dirInfo in subDirs) {
                     // Resursive call for each subdirectory.
                     WalkDirectoryFileTree(dirInfo, filesList);
                 }
