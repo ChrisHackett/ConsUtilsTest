@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -356,8 +357,8 @@ namespace consutil1 {
             foreach (var sName in srcFilesList) {
                 FileInfo sfi = new FileInfo(sName);
                 string srcPath = sfi.DirectoryName;
-                string dPath = Path.Combine((des!=null)?des:srcPath.Substring(0,3), srcPath.Substring(3));
-                string dName = Path.Combine(dPath, sfi.Name);
+                string dPath = (des != null)?Path.Combine(des, srcPath.Substring(3)):"";
+                string dName = (des != null) ? Path.Combine(dPath, sfi.Name) : "";
                 desFilesList.Add(sName + sdSepChar + dName);
                 //string cmd = pars["cmd"];
                 //string copts = pars["opts"];
@@ -379,13 +380,36 @@ namespace consutil1 {
                 return 0;
             }
 
+            string workDir = null;
+            if (pars.ContainsKey("workDir")) {
+                workDir = pars["workDir"];
+            }
+
 
             ParallelLoopResult result = Parallel.ForEach(desFilesList, n => {
+                ProcessStartInfo psi = new ProcessStartInfo();
                 string[] sdPair = n.Split(sdSepChar);
-                string cmd = pars["cmd"];
-                string copts = pars["opts"];
-                string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
-                System.Diagnostics.Process.Start(cmd, cmdOpts);
+                if (workDir != null) {
+                    switch (workDir) {
+                        case "@takesrc":
+                            psi.WorkingDirectory = sdPair[0];
+                            sdPair[0] = "";
+                            break;
+                        case "@takedes":
+                            psi.WorkingDirectory = sdPair[1];
+                            sdPair[1] = "";
+                            break;
+                        case "src":
+                            psi.WorkingDirectory = sdPair[0];
+                            break;
+                        case "des":
+                            psi.WorkingDirectory = sdPair[1];
+                            break;
+                    }
+                }
+                psi.FileName = pars["cmd"];
+                psi.Arguments = (pars.ContainsKey("opts"))?pars["opts"]:"";
+                System.Diagnostics.Process.Start(psi);
             });
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
