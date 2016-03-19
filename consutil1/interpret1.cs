@@ -181,7 +181,7 @@ namespace consutil1 {
                                                     templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
                                                 }
                                                 catch (Exception exc) {
-                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :"+dir, rVal, "oper.findd copy");
+                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :" + dir, rVal, "oper.findd copy");
                                                     Console.WriteLine(lmsg);
                                                     myLog(lmsg);
                                                 }
@@ -196,17 +196,36 @@ namespace consutil1 {
                                                 myLog(msg);
                                             }
                                             else {
-                                                List<string> finalList = new List<string>();
-                                                foreach (string dir in resultFinalList) {
-                                                    Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
-                                                    lpars["oper"] = "findf";
-                                                    lpars["src"] = dir;
-                                                    FileSystemOps fso = new FileSystemOps(myLog);
-                                                    finalList.AddRange(fso.FilterFSInfo(args, opts, lpars));
+                                                CopyDirectories(args, opts, pars, resultFinalList);
+                                            }
+                                        }
+                                    }
+                                    break;
+                                case "invoked": {
+                                        rVal = FindDirs(opts, pars, ref resultFinalList);
+                                        if (pars.ContainsKey("ttail")) {
+                                            List<string> templ = new List<string>();
+                                            foreach (string dir in resultFinalList) {
+                                                try {
+                                                    templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
                                                 }
-                                                string msg = SimpleUtils.InfoMsg("findd with des length ", rVal, "oper.findd walk");
+                                                catch (Exception exc) {
+                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :" + dir, rVal, "oper.findd copy");
+                                                    Console.WriteLine(lmsg);
+                                                    myLog(lmsg);
+                                                }
+                                            }
+                                            resultFinalList = templ;
+                                        }
+
+                                        if (pars.ContainsKey("cmd")) {
+                                            if (rVal != 0) {
+                                                string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
                                                 Console.WriteLine(msg);
                                                 myLog(msg);
+                                            }
+                                            else {
+                                                InvokeDirectories(args, opts, pars, resultFinalList);
                                             }
                                         }
                                     }
@@ -240,6 +259,30 @@ namespace consutil1 {
             }
 
             return resultFinalList;
+        }
+
+        private void CopyDirectories(string[] args, Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> resultFinalList) {
+            //List<string> finalList = new List<string>();
+            //foreach (string dir in resultFinalList) {
+            //    Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
+            //    lpars["oper"] = "findf";
+            //    lpars["src"] = dir;
+            //    FileSystemOps fso = new FileSystemOps(myLog);
+            //    finalList.AddRange(fso.FilterFSInfo(args, opts, lpars));
+            //}
+
+            Parallel.ForEach(resultFinalList, dir => {
+                Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
+                lpars["oper"] = "findf";
+                lpars["src"] = dir;
+                FileSystemOps fso = new FileSystemOps(myLog);
+                fso.FilterFSInfo(args, opts, lpars);
+            });
+
+
+            string msg = SimpleUtils.InfoMsg("findd with des length ", resultFinalList.Count, "oper.findd walk");
+            Console.WriteLine(msg);
+            myLog(msg);
         }
 
         private int FindDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, ref List<string> resultFinalList) {
@@ -301,35 +344,54 @@ namespace consutil1 {
         }
 
 
+        int InvokeDirectories(string[] args, Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> srcFilesList) {
+            //if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
 
-        int CopyDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList) {
-            if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
-
-            string des = pars["des"];
-            List<string> desFilesList = new List<string>();  // Accumulate src/des pairs so can parallel copies
-            Hashtable directoryNames = new Hashtable();  // to cut down on probes for create
+            List<string> desFilesList = new List<string>(); // Accumulate src/des pairs so can parallel copies
             char sdSepChar = '|';
+            string des = null;
+            if (pars.ContainsKey("des")) {
+                des = pars["des"];
+            }
             foreach (var sName in srcFilesList) {
                 FileInfo sfi = new FileInfo(sName);
                 string srcPath = sfi.DirectoryName;
-                //string sFrag = srcPath.Substring(src.Length);
-                string dPath = Path.Combine(des, srcPath.Substring(3));
-                if (directoryNames[dPath] == null) {
-                    if (!Directory.Exists(dPath)) {
-                        Directory.CreateDirectory(dPath);
-                        directoryNames[dPath] = 1;
-                    }
-                }
+                string dPath = Path.Combine((des!=null)?des:srcPath.Substring(0,3), srcPath.Substring(3));
                 string dName = Path.Combine(dPath, sfi.Name);
                 desFilesList.Add(sName + sdSepChar + dName);
+                //string cmd = pars["cmd"];
+                //string copts = pars["opts"];
+                //string cmdOpts = string.Format("{0} {1} {2}", copts, sName, dName);
+                //System.Diagnostics.Process.Start(cmd, cmdOpts);
             }
+
+
+
+            if (pars.ContainsKey("destf")) {
+                StreamWriter sw = new StreamWriter(pars["destf"]);
+                foreach (string stg in desFilesList) {
+                    string[] sdPair = stg.Split(sdSepChar);
+                    sw.WriteLine(sdPair[1]);
+                }
+                sw.Close();
+            }
+            if (pars.ContainsKey("nocmd")) {
+                return 0;
+            }
+
+
             ParallelLoopResult result = Parallel.ForEach(desFilesList, n => {
                 string[] sdPair = n.Split(sdSepChar);
-                File.Copy(sdPair[0], sdPair[1]);
+                string cmd = pars["cmd"];
+                string copts = pars["opts"];
+                string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
+                System.Diagnostics.Process.Start(cmd, cmdOpts);
             });
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
         }
+
+
         int CopyFiles(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList) {
             // REplicate a given a list of files to a destination directory
             // e.g. :  consutil1 -v oper=copy src=c:\junk des=g:\junk\_des\d1\
@@ -342,7 +404,6 @@ namespace consutil1 {
             foreach (var sName in srcFilesList) {
                 FileInfo sfi = new FileInfo(sName);
                 string srcPath = sfi.DirectoryName;
-                //string sFrag = srcPath.Substring(src.Length);
                 string dPath = Path.Combine(des, srcPath.Substring(3));
                 if (directoryNames[dPath] == null) {
                     if (!Directory.Exists(dPath)) {
