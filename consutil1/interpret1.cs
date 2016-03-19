@@ -41,10 +41,10 @@ namespace consutil1 {
 
 
     class SimpleUtils {
-        public static int ExtractArguements(IEnumerable<string> args, out StringDictionary opts, out StringDictionary pars, AccumInfo myLog) {
+        public static int ExtractArguements(IEnumerable<string> args, out Dictionary<string,string> opts, out Dictionary<string,string> pars, AccumInfo myLog) {
             int rVal = 0;
-            opts = new StringDictionary();
-            pars = new StringDictionary();
+            opts = new Dictionary<string,string>();
+            pars = new Dictionary<string,string>();
             foreach (string stgVal in args) {
                 string nam = stgVal;
                 try {
@@ -59,8 +59,8 @@ namespace consutil1 {
                         val = nam.Substring(eqIdx + 1);
                         nam = nam.Substring(0, eqIdx);
                     }
-                    StringDictionary targ = (isOpt) ? opts : pars;
-                    if (targ[nam] != null) {
+                    Dictionary<string,string> targ = (isOpt) ? opts : pars;
+                    if (targ.ContainsKey(nam)) {
                         targ[nam] = val;
                     }
                     else {
@@ -79,7 +79,7 @@ namespace consutil1 {
                 }
             }
 
-            if (opts["v"] != null) {
+            if (opts.ContainsKey("v")) {
                 foreach (string stg in opts.Keys) {
                     Console.WriteLine("o {0,-10} = '{1}'", stg, opts[stg]);
                 }
@@ -123,10 +123,10 @@ namespace consutil1 {
             }
         }
 
-        public List<string> FilterFSInfo(string[] args, StringDictionary opts, StringDictionary pars) {
+        public List<string> FilterFSInfo(string[] args, Dictionary<string,string> opts, Dictionary<string,string> pars) {
             int rVal = 0;
-            //StringDictionary opts;
-            //StringDictionary pars;
+            //Dictionary<string,string> opts;
+            //Dictionary<string,string> pars;
             if ((opts == null) || (pars == null)) {
                 int argsErr = SimpleUtils.ExtractArguements(args, out opts, out pars, myLog);
                 Console.WriteLine("FileSystemOps.FilterFSInfo.opts returns: {0:X}({0})", argsErr);
@@ -159,7 +159,7 @@ namespace consutil1 {
                                 case "findf": {
                                         //List<string> srcFilesList = new List<string>();
                                         rVal = TraverseAndCollect(opts, pars, resultFinalList, WalkDirectoryFileTree);
-                                        if (pars["des"] != null) {
+                                        if (pars.ContainsKey("des")) {
                                             if (rVal != 0) {
                                                 string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
                                                 Console.WriteLine(msg);
@@ -174,14 +174,14 @@ namespace consutil1 {
 
                                 case "findd": {
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
-                                        if (pars["des"] != null) {
+                                        if (pars.ContainsKey("des")) {
                                             if (rVal != 0) {
                                                 string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
                                                 Console.WriteLine(msg);
                                                 myLog(msg);
                                             }
                                             else {
-                                                if (pars["src]"] == null) pars.Add("src", "");
+                                                if (!pars.ContainsKey("src")) pars.Add("src", "");
                                                 pars["oper"] = "findf";
                                                 List<string> finalList = new List<string>();
                                                 foreach (string dir in resultFinalList) {
@@ -209,7 +209,7 @@ namespace consutil1 {
             DateTime dtStp = DateTime.Now;
             Console.WriteLine("msecs=" + dtStp.Subtract(dtStt).TotalMilliseconds);
 
-            if ((opts["v"] != null) && (opts["v"].Equals("1"))) {
+            if ((opts.ContainsKey("v")) && (opts["v"].Equals("1"))) {
                 foreach (string stg in resultFinalList) {
                     Console.WriteLine(stg);
                 }
@@ -219,7 +219,7 @@ namespace consutil1 {
             return resultFinalList;
         }
 
-        private int FindDirs(StringDictionary opts, StringDictionary pars, ref List<string> resultFinalList) {
+        private int FindDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, ref List<string> resultFinalList) {
             // example:  find git repos  (.git, or hooks not preceeded by .git)  consutil1 -v=1 oper=findd src=k:\_git\ pat=hooks,.git patex=.git
             int rVal;
             List<string> srcDirsList = new List<string>();
@@ -263,7 +263,7 @@ namespace consutil1 {
         }
 
 
-        int TraverseAndCollect(StringDictionary opts, StringDictionary pars, List<string> srcFilesList, Walker walkMethod) {
+        int TraverseAndCollect(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList, Walker walkMethod) {
             string src = pars["src"];
             if (src == null) DoLogError("need [src] directory ");
             if (lastErr != 0) return lastErr;
@@ -279,7 +279,7 @@ namespace consutil1 {
 
 
 
-        int CopyDirs(StringDictionary opts, StringDictionary pars, List<string> srcFilesList) {
+        int CopyDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList) {
             if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
 
             string des = pars["des"];
@@ -307,7 +307,7 @@ namespace consutil1 {
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
         }
-        int CopyFiles(StringDictionary opts, StringDictionary pars, List<string> srcFilesList) {
+        int CopyFiles(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList) {
             // REplicate a given a list of files to a destination directory
             // e.g. :  consutil1 -v oper=copy src=c:\junk des=g:\junk\_des\d1\
             if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
@@ -338,20 +338,16 @@ namespace consutil1 {
             return lastErr;
         }
 
-        private int ValidateDestinationDir(StringDictionary opts, StringDictionary pars) {
-            if (pars["des"] == null) DoLogError("need [des] directory ");
+        private int ValidateDestinationDir(Dictionary<string,string> opts, Dictionary<string,string> pars) {
+            if (!pars.ContainsKey("des")) DoLogError("need [des] directory ");
             if (lastErr != 0) return lastErr;
 
             if (Directory.Exists(pars["des"])) DoLogError("[des] directory exists already", 0);
             if (lastErr != 0) return lastErr;
 
-            string forceCopyRoot = @"g:\junk\_des";
-            string tv = opts["fd"];
-            if ((tv = opts["fd"]) != null) {
-                forceCopyRoot = tv;
-            }
+            string forceCopyRoot = (opts.ContainsKey("fd")) ? opts["fd"] : @"g:\junk\_des";
             if (forceCopyRoot.Length > 0) {
-                if (!(pars["des"].IndexOf(forceCopyRoot) == 0)) {
+                if (pars["des"].IndexOf(forceCopyRoot) != 0) {
                     DoLogError(" requires [des] root as :" + forceCopyRoot, 2);
                 }
             }
@@ -379,7 +375,7 @@ namespace consutil1 {
         }
 
 
-        int DedupList(StringDictionary opts, StringDictionary pars, List<string> srcFilesList, List<string> desDirsList) {
+        int DedupList(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList, List<string> desDirsList) {
             Hashtable htDirs = new Hashtable();
             foreach (var sName in srcFilesList) {
                 if (htDirs[sName] == null) {
