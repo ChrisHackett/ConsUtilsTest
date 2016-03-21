@@ -151,6 +151,9 @@ namespace consutil1 {
 
             List<string> resultFinalList = new List<string>();
 
+
+            //consutil1 -v oper=findd src=E:\_GIT_K_working_clones\_git\ des=W:\git_clones\k_working_clones\ -fd= > cons.txt 2>&1
+
             DateTime dtStt = DateTime.Now;
             foreach (string nam in pars.Keys) {
                 try {
@@ -276,8 +279,15 @@ namespace consutil1 {
                 Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
                 lpars["oper"] = "findf";
                 lpars["src"] = dir;
-                FileSystemOps fso = new FileSystemOps(myLog);
-                fso.FilterFSInfo(args, opts, lpars);
+                try {
+                    FileSystemOps fso = new FileSystemOps(myLog);
+                    fso.FilterFSInfo(args, opts, lpars);
+                }
+                catch (Exception exc) {
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "CopyDirectories parallel exception at "+ dir);
+                    Console.WriteLine(emsg);
+                    myLog(emsg);
+                }
             });
 
 
@@ -300,15 +310,15 @@ namespace consutil1 {
                 List<string> desDirsList = new List<string>();
                 rVal = DedupList(opts, pars, srcDirsList, desDirsList); // dedupped dirs list
                 Console.WriteLine("Directory List length:" + desDirsList.Count);
-                string pattern = pars["pat"];
-                if (pattern != null) {
+                if (pars.ContainsKey("pat")) {
+                    string pattern = pars["pat"];
                     string[] pats = pattern.Split(',');
                     foreach (string pat in pats) {
                         if (pat.Length > 0) {
                             foreach (string dir in desDirsList) {
                                 if (dir.EndsWith(pat)) {
-                                    string patternExclude = pars["patex"];
-                                    if (patternExclude != null) {  // todo: this should be pipelined not hardcoded 
+                                    if (pars.ContainsKey("patex")) {  // todo: this should be pipelined not hardcoded 
+                                        string patternExclude = pars["patex"];
                                         if (dir.IndexOf("\\") > 1) {
                                             if (dir.Substring(0, dir.LastIndexOf("\\")).IndexOf(patternExclude) > 0) {
                                                 continue; // has a parent dir component that excludes this match
@@ -331,9 +341,9 @@ namespace consutil1 {
 
 
         int TraverseAndCollect(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList, Walker walkMethod) {
-            string src = pars["src"];
-            if (src == null) DoLogError("need [src] directory ");
+            if (!pars.ContainsKey("src")) DoLogError("need [src] directory ");
             if (lastErr != 0) return lastErr;
+            string src = pars["src"];
 
             if (!Directory.Exists(src)) DoLogError("[src] directory does not exist");
             if (lastErr != 0) return lastErr;
@@ -389,38 +399,46 @@ namespace consutil1 {
             ParallelLoopResult result = Parallel.ForEach(desFilesList, n => {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 string[] sdPair = n.Split(sdSepChar);
-                if (workDir != null) {
-                    switch (workDir) {
-                        case "@takesrc":
-                            psi.WorkingDirectory = sdPair[0];
-                            sdPair[0] = "";
-                            break;
-                        case "@takedes":
-                            psi.WorkingDirectory = sdPair[1];
-                            sdPair[1] = "";
-                            break;
-                        case "src":
-                            psi.WorkingDirectory = sdPair[0];
-                            break;
-                        case "des":
-                            psi.WorkingDirectory = sdPair[1];
-                            break;
+                try {
+                    if (workDir != null) {
+                        switch (workDir) {
+                            case "@takesrc":
+                                psi.WorkingDirectory = sdPair[0];
+                                sdPair[0] = "";
+                                break;
+                            case "@takedes":
+                                psi.WorkingDirectory = sdPair[1];
+                                sdPair[1] = "";
+                                break;
+                            case "src":
+                                psi.WorkingDirectory = sdPair[0];
+                                break;
+                            case "des":
+                                psi.WorkingDirectory = sdPair[1];
+                                break;
+                        }
                     }
+                    psi.FileName = (pars.ContainsKey("cmd")) ? pars["cmd"] : "needCmdParToExecute.exe";
+                    string copts = (pars.ContainsKey("opts")) ? pars["opts"] : "";
+                    string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
+
+                    psi.Arguments = cmdOpts;
+
+                    Process.Start(psi);
                 }
-                psi.FileName = pars["cmd"];
-                string copts = (pars.ContainsKey("opts")) ? pars["opts"] : "";
-                string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
+                catch (Exception exc) {
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel InvokeDirectories at " + n);
+                    Console.WriteLine(emsg);
+                    myLog(emsg);
+                }
 
-                psi.Arguments = cmdOpts;
-
-                Process.Start(psi);
             });
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
         }
 
 
-        int CopyFiles(Dictionary<string,string> opts, Dictionary<string,string> pars, List<string> srcFilesList) {
+        int CopyFiles(Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> srcFilesList) {
             // REplicate a given a list of files to a destination directory
             // e.g. :  consutil1 -v oper=copy src=c:\junk des=g:\junk\_des\d1\
             if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
@@ -430,21 +448,36 @@ namespace consutil1 {
             Hashtable directoryNames = new Hashtable();  // to cut down on probes for create
             char sdSepChar = '|';
             foreach (var sName in srcFilesList) {
-                FileInfo sfi = new FileInfo(sName);
-                string srcPath = sfi.DirectoryName;
-                string dPath = Path.Combine(des, srcPath.Substring(3));
-                if (directoryNames[dPath] == null) {
-                    if (!Directory.Exists(dPath)) {
-                        Directory.CreateDirectory(dPath);
-                        directoryNames[dPath] = 1;
+                try {
+                    FileInfo sfi = new FileInfo(sName);
+                    string srcPath = sfi.DirectoryName;
+                    string dPath = Path.Combine(des, srcPath.Substring(3));
+                    if (directoryNames[dPath] == null) {
+                        if (!Directory.Exists(dPath)) {
+                            Directory.CreateDirectory(dPath);
+                            directoryNames[dPath] = 1;
+                        }
                     }
+                    string dName = Path.Combine(dPath, sfi.Name);
+                    desFilesList.Add(sName + sdSepChar + dName);
                 }
-                string dName = Path.Combine(dPath, sfi.Name);
-                desFilesList.Add(sName + sdSepChar + dName);
+                catch (Exception exc) {
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "dirs for CopyFiles at " + sName);
+                    Console.WriteLine(emsg);
+                    myLog(emsg);
+
+                }
             }
             ParallelLoopResult result = Parallel.ForEach(desFilesList, n => {
-                string[] sdPair = n.Split(sdSepChar);
-                File.Copy(sdPair[0], sdPair[1]);
+                try {
+                    string[] sdPair = n.Split(sdSepChar);
+                    File.Copy(sdPair[0], sdPair[1]);
+                }
+                catch (Exception exc) {
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel CopyFiles at " + n);
+                    Console.WriteLine(emsg);
+                    myLog(emsg);
+                }
             });
             myLog(SimpleUtils.InfoMsg("parallel copy result", (result.IsCompleted) ? 0 : 1, "oper.copy walk"));
             return lastErr;
