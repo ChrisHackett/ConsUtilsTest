@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 
-// touch to push downstream
+// touch to push downstream; touching again
 
 namespace consutil1 {
 
