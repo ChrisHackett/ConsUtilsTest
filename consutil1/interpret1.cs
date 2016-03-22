@@ -134,7 +134,7 @@ namespace consutil1 {
     /// On fast SSD with lots of medium to small files the parallel approach about doubles the throughput of what basic windows xcopy can do.
     /// </summary>
     class FileSystemOps {
-        private AccumInfo myLog;
+        private readonly AccumInfo myLog;
         private int lastErr;
         public FileSystemOps(AccumInfo errorLog) {
             myLog = errorLog ?? myAccumInfo;
@@ -148,7 +148,6 @@ namespace consutil1 {
         }
 
         public List<string> FilterFSInfo(string[] args, Dictionary<string,string> opts, Dictionary<string,string> pars) {
-            int rVal;
             if ((opts == null) || (pars == null)) {
                 int argsErr = SimpleUtils.ExtractArguements(args, out opts, out pars, myLog);
                 Console.WriteLine("FileSystemOps.FilterFSInfo.opts returns: {0:X}({0})", argsErr);
@@ -173,6 +172,7 @@ namespace consutil1 {
 
             DateTime dtStt = DateTime.Now;
             foreach (string nam in pars.Keys) {
+                int rVal;
                 try {
                     switch (nam) {
                         case "oper":
@@ -312,9 +312,8 @@ namespace consutil1 {
 
         private int FindDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, ref List<string> resultFinalList) {
             // example:  find git repos  (.git, or hooks not preceeded by .git)  consutil1 -v=1 oper=findd src=k:\_git\ pat=hooks,.git patex=.git
-            int rVal;
             List<string> srcDirsList = new List<string>();
-            rVal = TraverseAndCollect(opts, pars, srcDirsList, WalkDirectoryTree);
+            var rVal = TraverseAndCollect(opts, pars, srcDirsList, WalkDirectoryTree);
             if (rVal != 0) {
                 string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
                 Console.WriteLine(msg);
