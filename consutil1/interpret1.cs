@@ -191,7 +191,7 @@ namespace consutil1 {
                                                     templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
                                                 }
                                                 catch (Exception exc) {
-                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :" + dir, rVal, "oper.findd copy");
+                                                    string lmsg = SimpleUtils.ExceptionMsg(exc," truncating dir for copy :" + dir);
                                                     Console.WriteLine(lmsg);
                                                     myLog(lmsg);
                                                 }
