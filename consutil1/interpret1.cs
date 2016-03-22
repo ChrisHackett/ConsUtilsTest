@@ -27,15 +27,17 @@ namespace consutil1 {
 
     class Interpret1 {
 
-    const string hooksNoGit = @"\w*(?<!.git\)hooks";
+    //const string hooksNoGit = @"\w*(?<!.git\)hooks";
 
 
         static void Main(string[] args) {
             FileSystemOps oper = new FileSystemOps(myAccumInfo);
             List<String> results = oper.FilterFSInfo(args,null,null);
             Console.WriteLine("\n Interpret1.log  (result List items={0}) ", results.Count);
-            foreach (var var in errInfo) {
-                Console.WriteLine(var);
+            lock (errInfo) {
+                foreach (var var in errInfo) {
+                    Console.WriteLine(var);
+                }
             }
             Console.WriteLine("\n Interpret1.log end");
         }
@@ -49,7 +51,7 @@ namespace consutil1 {
             }
         }
 
-        static List<string> errInfo = new List<string>();
+        static readonly List<string> errInfo = new List<string>();
     }
 
     /// <summary>
@@ -68,7 +70,7 @@ namespace consutil1 {
                         isOpt = true;
                         nam = nam.Substring(1);
                     }
-                    int eqIdx = 0;
+                    int eqIdx;
                     string val = "";
                     if ((nam.Length >= 1) && (eqIdx = nam.IndexOf("=")) > 0) {
                         val = nam.Substring(eqIdx + 1);
@@ -83,6 +85,8 @@ namespace consutil1 {
                     }
                     if (isOpt && nam.Equals("ThRoW")) {  // to test aborting
                         int iv = int.Parse(val);
+                        if (iv != 0) {
+                        }
                         throw new Exception(val);
                     }
                 }
@@ -130,13 +134,13 @@ namespace consutil1 {
     /// On fast SSD with lots of medium to small files the parallel approach about doubles the throughput of what basic windows xcopy can do.
     /// </summary>
     class FileSystemOps {
-        private AccumInfo myLog = null;
-        private int lastErr = 0;
+        private AccumInfo myLog;
+        private int lastErr;
         public FileSystemOps(AccumInfo errorLog) {
             myLog = errorLog ?? myAccumInfo;
         }
 
-        List<string> errInfo = new List<string>();
+        private readonly List<string> errInfo = new List<string>();
         void myAccumInfo(string val) {
             lock (errInfo) {
                 errInfo.Add(val);
@@ -144,7 +148,7 @@ namespace consutil1 {
         }
 
         public List<string> FilterFSInfo(string[] args, Dictionary<string,string> opts, Dictionary<string,string> pars) {
-            int rVal = 0;
+            int rVal;
             if ((opts == null) || (pars == null)) {
                 int argsErr = SimpleUtils.ExtractArguements(args, out opts, out pars, myLog);
                 Console.WriteLine("FileSystemOps.FilterFSInfo.opts returns: {0:X}({0})", argsErr);
@@ -159,7 +163,6 @@ namespace consutil1 {
                     }
                 }
                 catch (Exception exc) {
-                    rVal = exc.HResult;
                     string msg = SimpleUtils.ExceptionMsg(exc, "FileSystemOps.FilterFSInfo.opts");
                     Console.WriteLine(msg);
                     myLog(msg);
@@ -191,6 +194,7 @@ namespace consutil1 {
                                     break;
 
                                 case "findd": { // find directories. sample to find directories with git repos, bare or not, in prep for duping directories or pulling for git updates.
+                                        //consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\K_Result.txt  destf=\junk\K_gitSrcDirs_pull.txt
                                         //consutil1 -v oper=findd pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_test_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\test_gitSrcDirs_pull.txt workDir=@takesrc
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
                                         if (pars.ContainsKey("ttail")) {
@@ -221,6 +225,9 @@ namespace consutil1 {
                                     }
                                     break;
                                 case "invoked": {
+                                        // clone repos from a tree
+                                        // -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\ des=g:\_t ttail=\ resultsf=\junk\K_e_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=clone  destf=\junk\K_e_dest.txt workDir=@takesrc -fd=
+                                        // pull a bunch of repos
                                         // consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_G_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\G_gitSrcDirs_pull.txt workDir=@takesrc
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
                                         if (pars.ContainsKey("ttail")) {
@@ -230,7 +237,7 @@ namespace consutil1 {
                                                     templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
                                                 }
                                                 catch (Exception exc) {
-                                                    string lmsg = SimpleUtils.ErrorMsg(" truncating dir for copy :" + dir, rVal, "oper.findd copy");
+                                                    string lmsg = SimpleUtils.ExceptionMsg(exc, " truncating dir for copy :" + dir);
                                                     Console.WriteLine(lmsg);
                                                     myLog(lmsg);
                                                 }
@@ -369,10 +376,10 @@ namespace consutil1 {
             if (pars.ContainsKey("des")) {
                 des = pars["des"];
             }
-            foreach (var sName in srcFilesList) {
+            foreach (var sName in srcFilesList) {  // accumulate into a list that can remain unaltered during a parallel
                 FileInfo sfi = new FileInfo(sName);
                 string srcPath = sfi.DirectoryName;
-                string dPath = (des != null)?Path.Combine(des, srcPath.Substring(3)):"";
+                string dPath = (des != null)?Path.Combine(des, srcPath.Substring(3)):"";  // might not have a destination, but still want a list of sources
                 string dName = (des != null) ? Path.Combine(dPath, sfi.Name) : "";
                 desFilesList.Add(sName + sdSepChar + dName);
             }
@@ -420,7 +427,7 @@ namespace consutil1 {
                     }
                     psi.FileName = (pars.ContainsKey("cmd")) ? pars["cmd"] : "needCmdParToExecute.exe";
                     string copts = (pars.ContainsKey("opts")) ? pars["opts"] : "";
-                    string cmdOpts = string.Format("{0} {1} {2}", copts, sdPair[0], sdPair[1]);
+                    string cmdOpts = $"{copts} {sdPair[0]} {sdPair[1]}";
 
                     psi.Arguments = cmdOpts;
 
@@ -541,7 +548,6 @@ namespace consutil1 {
 
         void WalkDirectoryFileTree(DirectoryInfo root, List<string> filesList) {
             FileInfo[] files = null;
-            DirectoryInfo[] subDirs = null;
 
             try {
                 files = root.GetFiles("*.*");
@@ -560,10 +566,9 @@ namespace consutil1 {
                 DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree Exception"));
             }
 
-
             if (files != null) {
                 filesList.AddRange(files.Select(fi => fi.FullName));
-                subDirs = root.GetDirectories();
+                DirectoryInfo[] subDirs = root.GetDirectories();
 
                 foreach (DirectoryInfo dirInfo in subDirs) {
                     WalkDirectoryFileTree(dirInfo, filesList);
