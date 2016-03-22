@@ -48,6 +48,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="README.md" />
+    <None Include="scripts\bulkupdates.ps1" />
+    <None Include="scripts\GitClones.ps1" />
+    <None Include="scripts\GitPulls.ps1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="scripts\example_gitSrcDirs.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

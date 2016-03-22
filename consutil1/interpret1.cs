@@ -30,7 +30,10 @@ namespace consutil1 {
             }
             Console.WriteLine("\n Interpret1.log end");
         }
-
+        /// <summary>
+        /// accumulate some info, likely for output later.
+        /// </summary>
+        /// <param name="val"></param>
         static void myAccumInfo(string val) {
             lock (errInfo) {
                 errInfo.Add(val);
@@ -40,7 +43,9 @@ namespace consutil1 {
         static List<string> errInfo = new List<string>();
     }
 
-
+    /// <summary>
+    /// some simple statics for commandline processing, errror messages, etc.
+    /// </summary>
     class SimpleUtils {
         public static int ExtractArguements(IEnumerable<string> args, out Dictionary<string,string> opts, out Dictionary<string,string> pars, AccumInfo myLog) {
             int rVal = 0;
@@ -67,7 +72,7 @@ namespace consutil1 {
                     else {
                         targ.Add(nam, val);
                     }
-                    if (isOpt && nam.Equals("ThRoW")) {
+                    if (isOpt && nam.Equals("ThRoW")) {  // to test aborting
                         int iv = int.Parse(val);
                         throw new Exception(val);
                     }
@@ -80,7 +85,7 @@ namespace consutil1 {
                 }
             }
 
-            if (opts.ContainsKey("v")) {
+            if (opts.ContainsKey("v")) {  // simple verbose
                 foreach (string stg in opts.Keys) {
                     Console.WriteLine("o {0,-10} = '{1}'", stg, opts[stg]);
                 }
@@ -109,7 +114,12 @@ namespace consutil1 {
     }
 
 
-
+    /// <summary>
+    /// Perform some operations on files and directories.
+    /// THis is mainly to test alternative io patterns, test speed improvements on SSD, etc.
+    /// Real world example for cloning git repos, for example, as well as duplicating lots of files quickly.
+    /// On fast SSD with lots of medium to small files the parallel approach about doubles the throughput of what basic windows xcopy can do.
+    /// </summary>
     class FileSystemOps {
         private AccumInfo myLog = null;
         private int lastErr = 0;
@@ -126,8 +136,6 @@ namespace consutil1 {
 
         public List<string> FilterFSInfo(string[] args, Dictionary<string,string> opts, Dictionary<string,string> pars) {
             int rVal = 0;
-            //Dictionary<string,string> opts;
-            //Dictionary<string,string> pars;
             if ((opts == null) || (pars == null)) {
                 int argsErr = SimpleUtils.ExtractArguements(args, out opts, out pars, myLog);
                 Console.WriteLine("FileSystemOps.FilterFSInfo.opts returns: {0:X}({0})", argsErr);
@@ -151,17 +159,14 @@ namespace consutil1 {
 
             List<string> resultFinalList = new List<string>();
 
-
-            //consutil1 -v oper=findd src=E:\_GIT_K_working_clones\_git\ des=W:\git_clones\k_working_clones\ -fd= > cons.txt 2>&1
-
             DateTime dtStt = DateTime.Now;
             foreach (string nam in pars.Keys) {
                 try {
                     switch (nam) {
                         case "oper":
                             switch (pars[nam]) {
-                                case "findf": {
-                                        //List<string> srcFilesList = new List<string>();
+                                case "findf": {  // find files.  if destination than use it
+                                        //consutil1 -v oper=findf src=c:\source  des=d:\destination
                                         rVal = TraverseAndCollect(opts, pars, resultFinalList, WalkDirectoryFileTree);
                                         if (pars.ContainsKey("des")) {
                                             if (rVal != 0) {
@@ -176,7 +181,8 @@ namespace consutil1 {
                                     }
                                     break;
 
-                                case "findd": {
+                                case "findd": { // find directories. sample to find directories with git repos, bare or not, in prep for duping directories or pulling for git updates.
+                                        //consutil1 -v oper=findd pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_test_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\test_gitSrcDirs_pull.txt workDir=@takesrc
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
                                         if (pars.ContainsKey("ttail")) {
                                             List<string> templ = new List<string>();
@@ -206,6 +212,7 @@ namespace consutil1 {
                                     }
                                     break;
                                 case "invoked": {
+                                        // consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_G_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\G_gitSrcDirs_pull.txt workDir=@takesrc
                                         rVal = FindDirs(opts, pars, ref resultFinalList);
                                         if (pars.ContainsKey("ttail")) {
                                             List<string> templ = new List<string>();
@@ -266,15 +273,6 @@ namespace consutil1 {
         }
 
         private void CopyDirectories(string[] args, Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> resultFinalList) {
-            //List<string> finalList = new List<string>();
-            //foreach (string dir in resultFinalList) {
-            //    Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
-            //    lpars["oper"] = "findf";
-            //    lpars["src"] = dir;
-            //    FileSystemOps fso = new FileSystemOps(myLog);
-            //    finalList.AddRange(fso.FilterFSInfo(args, opts, lpars));
-            //}
-
             Parallel.ForEach(resultFinalList, dir => {
                 Dictionary<string, string> lpars = pars.Keys.ToDictionary(par => par, par => pars[par]);
                 lpars["oper"] = "findf";
@@ -356,8 +354,6 @@ namespace consutil1 {
 
 
         int InvokeDirectories(string[] args, Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> srcFilesList) {
-            //if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
-
             List<string> desFilesList = new List<string>(); // Accumulate src/des pairs so can parallel copies
             char sdSepChar = '|';
             string des = null;
@@ -370,12 +366,7 @@ namespace consutil1 {
                 string dPath = (des != null)?Path.Combine(des, srcPath.Substring(3)):"";
                 string dName = (des != null) ? Path.Combine(dPath, sfi.Name) : "";
                 desFilesList.Add(sName + sdSepChar + dName);
-                //string cmd = pars["cmd"];
-                //string copts = pars["opts"];
-                //string cmdOpts = string.Format("{0} {1} {2}", copts, sName, dName);
-                //System.Diagnostics.Process.Start(cmd, cmdOpts);
             }
-
 
 
             if (pars.ContainsKey("destf")) {
@@ -439,8 +430,8 @@ namespace consutil1 {
 
 
         int CopyFiles(Dictionary<string, string> opts, Dictionary<string, string> pars, List<string> srcFilesList) {
-            // REplicate a given a list of files to a destination directory
-            // e.g. :  consutil1 -v oper=copy src=c:\junk des=g:\junk\_des\d1\
+            // Replicate a given a list of files to a destination directory
+            // e.g. :  consutil1 -v oper=findf src=c:\junk des=g:\junk\_des\d1\
             if (ValidateDestinationDir(opts, pars) != 0) return lastErr;
 
             string des = pars["des"];
@@ -535,8 +526,6 @@ namespace consutil1 {
         void WalkDirectoryTree(DirectoryInfo root, List<string> dirsList) {
             dirsList.Add(root.FullName);
             foreach (DirectoryInfo dirInfo in root.GetDirectories()) {
-                // Resursive call for each subdirectory.
-                //dirsList.Add(dirInfo.FullName);
                 WalkDirectoryTree(dirInfo, dirsList);
             }
         }
@@ -545,16 +534,10 @@ namespace consutil1 {
             FileInfo[] files = null;
             DirectoryInfo[] subDirs = null;
 
-            // First, process all the files directly under this folder
             try {
                 files = root.GetFiles("*.*");
             }
-            // This is thrown if even one of the files requires permissions greater
-            // than the application provides.
             catch (UnauthorizedAccessException e) {
-                // This code just writes out the message and continues to recurse.
-                // You may decide to do something different here. For example, you
-                // can try to elevate your privileges and access the file again.
                 DoLogError(SimpleUtils.ExceptionMsg(e, "WalkDirectoryFileTree UnauthorizedAccessException"));
             }
 
@@ -570,20 +553,10 @@ namespace consutil1 {
 
 
             if (files != null) {
-                foreach (FileInfo fi in files) {
-                    // In this example, we only access the existing FileInfo object. If we
-                    // want to open, delete or modify the file, then
-                    // a try-catch block is required here to handle the case
-                    // where the file has been deleted since the call to TraverseTree().
-                    //Console.WriteLine(fi.FullName);
-                    filesList.Add(fi.FullName);
-                }
-
-                // Now find all the subdirectories under this directory.
+                filesList.AddRange(files.Select(fi => fi.FullName));
                 subDirs = root.GetDirectories();
 
                 foreach (DirectoryInfo dirInfo in subDirs) {
-                    // Resursive call for each subdirectory.
                     WalkDirectoryFileTree(dirInfo, filesList);
                 }
             }

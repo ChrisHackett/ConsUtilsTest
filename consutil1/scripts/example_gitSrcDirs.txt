@@ -1,0 +1,9 @@
+.\angular\Sample1
+.\ASF\ASF1_nonbare
+.\ASF_Azure\ASFAz1
+.\consutil1
+.\google\initialDev\GoogleMsg1
+.\graphics\documentation-examples-master
+.\graphics\movies-dotnet-neo4jclient-master
+.\PcsmD1
+.\_mono
