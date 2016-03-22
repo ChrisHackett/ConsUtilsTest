@@ -54,6 +54,7 @@
     <None Include="scripts\GitPulls.ps1" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="scripts\bulkUpdatesList.txt" />
     <Content Include="scripts\example_gitSrcDirs.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
