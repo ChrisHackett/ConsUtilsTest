@@ -172,95 +172,105 @@ namespace consutil1 {
             List<string> resultFinalList = new List<string>();
 
             DateTime dtStt = DateTime.Now;
-            foreach (string nam in pars.Keys) {
+
+            if (pars.ContainsKey("oper")) {
+                //string nam = pars["oper"];
                 int rVal;
                 try {
-                    switch (nam) {
-                        case "oper":
-                            switch (pars[nam]) {
-                                case "findf": {  // find files.  if destination than use it
-                                        //consutil1 -v oper=findf src=c:\source  des=d:\destination
-                                        rVal = TraverseAndCollect(opts, pars, resultFinalList, WalkDirectoryFileTree);
-                                        if (pars.ContainsKey("des")) {
-                                            if (rVal != 0) {
-                                                string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
-                                                Console.WriteLine(msg);
-                                                myLog(msg);
-                                            }
-                                            else {
-                                                CopyFiles(opts, pars, resultFinalList);
-                                            }
-                                        }
-                                    }
-                                    break;
+                    switch (pars["oper"]) {
+                        case "verbs":
+                            if (pars.ContainsKey("cmd")) {
+                                ProcessStartInfo startInfo = new ProcessStartInfo(pars["cmd"]);
 
-                                case "findd": { // find directories. sample to find directories with git repos, bare or not, in prep for duping directories or pulling for git updates.
+                                for (int i=0; i<startInfo.Verbs.Length; i++) {
+                                    // Display the possible verbs.
+                                    Console.WriteLine("  {0}. {1}",i, startInfo.Verbs[i]);
+                                }
+                            }
+
+                            break;
+                        case "findf": { // find files.  if destination than use it
+                                        //consutil1 -v oper=findf src=c:\source  des=d:\destination
+                                rVal = TraverseAndCollect(opts, pars, resultFinalList, WalkDirectoryFileTree);
+                                if (pars.ContainsKey("des")) {
+                                    if (rVal != 0) {
+                                        string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.copy walk");
+                                        Console.WriteLine(msg);
+                                        myLog(msg);
+                                    }
+                                    else {
+                                        CopyFiles(opts, pars, resultFinalList);
+                                    }
+                                }
+                            }
+                            break;
+
+                        case "findd": { // find directories. sample to find directories with git repos, bare or not, in prep for duping directories or pulling for git updates.
                                         //consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\K_Result.txt  destf=\junk\K_gitSrcDirs_pull.txt
                                         //consutil1 -v oper=findd pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_test_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\test_gitSrcDirs_pull.txt workDir=@takesrc
-                                        rVal = FindDirs(opts, pars, ref resultFinalList);
-                                        if (pars.ContainsKey("ttail")) {
-                                            List<string> templ = new List<string>();
-                                            foreach (string dir in resultFinalList) {
-                                                try {
-                                                    templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
-                                                }
-                                                catch (Exception exc) {
-                                                    string lmsg = SimpleUtils.ExceptionMsg(exc," truncating dir for copy :" + dir);
-                                                    Console.WriteLine(lmsg);
-                                                    myLog(lmsg);
-                                                }
-                                            }
-                                            resultFinalList = templ;
+                                rVal = FindDirs(opts, pars, ref resultFinalList);
+                                if (pars.ContainsKey("ttail")) {
+                                    List<string> templ = new List<string>();
+                                    foreach (string dir in resultFinalList) {
+                                        try {
+                                            templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
                                         }
-
-                                        if (pars.ContainsKey("des")) {
-                                            if (rVal != 0) {
-                                                string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
-                                                Console.WriteLine(msg);
-                                                myLog(msg);
-                                            }
-                                            else {
-                                                CopyDirectories(args, opts, pars, resultFinalList);
-                                            }
+                                        catch (Exception exc) {
+                                            string lmsg = SimpleUtils.ExceptionMsg(exc, " truncating dir for copy :" + dir);
+                                            Console.WriteLine(lmsg);
+                                            myLog(lmsg);
                                         }
                                     }
-                                    break;
-                                case "invoked": {
-                                        // clone repos from a tree
-                                        // -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\ des=g:\_t ttail=\ resultsf=\junk\K_e_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=clone  destf=\junk\K_e_dest.txt workDir=@takesrc -fd=
-                                        // pull a bunch of repos
-                                        // consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_G_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\G_gitSrcDirs_pull.txt workDir=@takesrc
-                                        rVal = FindDirs(opts, pars, ref resultFinalList);
-                                        if (pars.ContainsKey("ttail")) {
-                                            List<string> templ = new List<string>();
-                                            foreach (string dir in resultFinalList) {
-                                                try {
-                                                    templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
-                                                }
-                                                catch (Exception exc) {
-                                                    string lmsg = SimpleUtils.ExceptionMsg(exc, " truncating dir for copy :" + dir);
-                                                    Console.WriteLine(lmsg);
-                                                    myLog(lmsg);
-                                                }
-                                            }
-                                            resultFinalList = templ;
-                                        }
+                                    resultFinalList = templ;
+                                }
 
-                                        if (pars.ContainsKey("cmd")) {
-                                            if (rVal != 0) {
-                                                string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
-                                                Console.WriteLine(msg);
-                                                myLog(msg);
-                                            }
-                                            else {
-                                                InvokeDirectories(args, opts, pars, resultFinalList);
-                                            }
+                                if (pars.ContainsKey("des")) {
+                                    if (rVal != 0) {
+                                        string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
+                                        Console.WriteLine(msg);
+                                        myLog(msg);
+                                    }
+                                    else {
+                                        CopyDirectories(args, opts, pars, resultFinalList);
+                                    }
+                                }
+                            }
+                            break;
+                        case "invoked": {
+                                // clone repos from a tree
+                                // -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\ des=g:\_t ttail=\ resultsf=\junk\K_e_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=clone  destf=\junk\K_e_dest.txt workDir=@takesrc -fd=
+                                // pull a bunch of repos
+                                // consutil1 -v oper=invoked pat=hooks,.git patex=.git src=E:\_GIT_K_working_clones\  ttail=\ resultsf=\junk\invoked_G_Result.txt cmd="C:\Program Files\Git\bin\git.exe" opts=pull  destf=\junk\G_gitSrcDirs_pull.txt workDir=@takesrc
+                                rVal = FindDirs(opts, pars, ref resultFinalList);
+                                if (pars.ContainsKey("ttail")) {
+                                    List<string> templ = new List<string>();
+                                    foreach (string dir in resultFinalList) {
+                                        try {
+                                            templ.Add(dir.Substring(0, dir.LastIndexOf(pars["ttail"])));
+                                        }
+                                        catch (Exception exc) {
+                                            string lmsg = SimpleUtils.ExceptionMsg(exc, " truncating dir for copy :" + dir);
+                                            Console.WriteLine(lmsg);
+                                            myLog(lmsg);
                                         }
                                     }
-                                    break;
+                                    resultFinalList = templ;
+                                }
+
+                                if (pars.ContainsKey("cmd")) {
+                                    if (rVal != 0) {
+                                        string msg = SimpleUtils.ErrorMsg("aborting copy on error", rVal, "oper.findd walk");
+                                        Console.WriteLine(msg);
+                                        myLog(msg);
+                                    }
+                                    else {
+                                        InvokeDirectories(args, opts, pars, resultFinalList);
+                                    }
+                                }
                             }
                             break;
                     }
+
                 }
                 catch (Exception exc) {
                     rVal = exc.HResult;
@@ -299,7 +309,7 @@ namespace consutil1 {
                     fso.FilterFSInfo(args, opts, lpars);
                 }
                 catch (Exception exc) {
-                    string emsg = SimpleUtils.ExceptionMsg(exc, "CopyDirectories parallel exception at "+ dir);
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "CopyDirectories parallel exception at " + dir);
                     Console.WriteLine(emsg);
                     myLog(emsg);
                 }
@@ -311,7 +321,7 @@ namespace consutil1 {
             myLog(msg);
         }
 
-        private int FindDirs(Dictionary<string,string> opts, Dictionary<string,string> pars, ref List<string> resultFinalList) {
+        private int FindDirs(Dictionary<string, string> opts, Dictionary<string, string> pars, ref List<string> resultFinalList) {
             // example:  find git repos  (.git, or hooks not preceeded by .git)  consutil1 -v=1 oper=findd src=k:\_git\ pat=hooks,.git patex=.git
             List<string> srcDirsList = new List<string>();
             var rVal = TraverseAndCollect(opts, pars, srcDirsList, WalkDirectoryTree);
