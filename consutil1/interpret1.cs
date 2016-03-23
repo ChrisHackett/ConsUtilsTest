@@ -433,7 +433,8 @@ namespace consutil1 {
                     Process.Start(psi);
                 }
                 catch (Exception exc) {
-                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel InvokeDirectories at " + n);
+                    string psiTxt = string.Format("{ psi file='{0}', Args='{1}'",psi.FileName, psi.Arguments);
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel InvokeDirectories: "+ psiTxt +" at " + n);
                     Console.WriteLine(emsg);
                     myLog(emsg);
                 }
