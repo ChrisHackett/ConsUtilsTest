@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 
@@ -401,6 +402,19 @@ namespace consutil1 {
                 workDir = pars["workDir"];
             }
 
+            int procLimit = 10;
+            if (opts.ContainsKey("procLimit")) {
+                int.TryParse(opts["procLimit"],out procLimit);
+            }
+            if (procLimit > 100) {
+                procLimit = 100;
+            }
+            if (procLimit < 1) {
+                procLimit = 1;
+            }
+
+            int currentProcs = 0;
+            string processLock = "";
 
             ParallelLoopResult result = Parallel.ForEach(desFilesList, n => {
                 ProcessStartInfo psi = new ProcessStartInfo();
@@ -430,13 +444,27 @@ namespace consutil1 {
 
                     psi.Arguments = cmdOpts;
 
-                    Process.Start(psi);
+                    while (currentProcs > procLimit) {
+                        Thread.Sleep(20);
+                    }
+                    lock (processLock) {
+                        currentProcs++;
+                    }
+                    Process process = new Process();
+                    process.StartInfo = psi;
+                    process.Start();
+                    process.WaitForExit();  // this lets us put a clamp on the number of parallel processes.
                 }
                 catch (Exception exc) {
-                    string psiTxt = string.Format("{ psi file='{0}', Args='{1}'",psi.FileName, psi.Arguments);
-                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel InvokeDirectories: "+ psiTxt +" at " + n);
+                    string psiTxt = string.Format("{ psi file='{0}', Args='{1}'", psi.FileName, psi.Arguments);
+                    string emsg = SimpleUtils.ExceptionMsg(exc, "parallel InvokeDirectories: " + psiTxt + " at " + n);
                     Console.WriteLine(emsg);
                     myLog(emsg);
+                }
+                finally {
+                    lock (processLock) {
+                        currentProcs--;
+                    }
                 }
 
             });
